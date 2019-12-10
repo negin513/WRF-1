@@ -8,6 +8,55 @@
 !  This MODULE CONTAINS the following routines:
 
 
+module module_lilac_reshape
+  implicit none
+contains
+
+  subroutine lilac_reshape (ide, jde, its, ite, jts, jte, var_2d, var_1d)
+    integer, intent(in) :: ide  ! domain end index, i
+    integer, intent(in) :: jde  ! domain end index, j
+    integer, intent(in) :: its  ! task start index, i
+    integer, intent(in) :: ite  ! task end index, i
+    integer, intent(in) :: jts  ! task start index, j
+    integer, intent(in) :: jte  ! task end index, j
+    integer, allocatable, intent(in)  :: var_2d (:,:)
+    integer, allocatable, intent(out) :: var_1d(:)
+
+    integer :: ite_limited  ! task end index on the mass point grid, i
+    integer :: jte_limited  ! task end index on the mass point grid, j
+    integer :: num_points
+    integer :: i, j, n
+
+
+
+    ! The very last index in both row & column space is just used on the momentum grid.
+    ! Here we are just working with the mass point grid, so we need to ignore that last
+    ! index.
+
+    num_points = ((ite_limited - its + 1) * (jte_limited - jts + 1))
+    ite_limited = min(ite, ide-1)
+    jte_limited = min(jte, jde-1)
+
+
+    allocate (var_1d (num_points))
+
+    n= 0
+
+    do j = jts, jte_limited
+       do i = its, ite_limited
+          n = n + 1
+          print *, "about to set var1d of ",n,"to var_2d of" i, j
+          var_1d(n) = var_2d(i, j)
+
+       end do
+    end do
+
+
+  end subroutine lilac_reshape
+end module module_lilac_reshape
+
+
+
 module module_create_gindex
   implicit none
 contains
@@ -31,11 +80,9 @@ contains
     ! The very last index in both row & column space is just used on the momentum grid.
     ! Here we are just working with the mass point grid, so we need to ignore that last
     ! index.
-    print *, "here 1"
     ite_limited = min(ite, ide-1)
     jte_limited = min(jte, jde-1)
 
-    print *, "here 2"
     num_points = ((ite_limited - its + 1) * (jte_limited - jts + 1))
 
     print *, "ide :", ide
@@ -82,21 +129,13 @@ contains
 end module module_create_gindex
 
 
-
-
-
-
-
-
-
-
-
 MODULE module_physics_init
 
    USE module_state_description
    USE module_model_constants
    USE module_configure, ONLY : grid_config_rec_type
    USE module_create_gindex
+   USE module_lilac_reshape
 !  USE module_ssib_veg , ONLY : init_module_ssib_veg !fds (SSiB constants)
    !Local data for CAM's MG MP scheme
    integer  :: ixcldliq, ixcldice, ixnumliq, ixnumice
@@ -3100,10 +3139,6 @@ CONTAINS
 ! LILAC initialization which initialize CLM
      !CASE ((LILACSCHEME))
          !
-
-           ! CALL LILAC_CLM_INIT (or preinit) which includes everhitng...
-
-
            ! get comp_comm
            comp_comm = MPI_COMM_WORLD
            CALL MPI_COMM_RANK(comp_comm, mytask, ierr)
@@ -3115,15 +3150,20 @@ CONTAINS
 
 
            !1d atm_lons and atm_lats
-           atm_lons = reshape (XLONG, (/SIZE(XLONG)/))
-           atm_lats = reshape (XLAT, (/SIZE(XLAT)/))
+           !atm_lons = reshape (XLONG, (/SIZE(XLONG)/))
+           !atm_lats = reshape (XLAT, (/SIZE(XLAT)/))
+            
+             
+            CALL lilac_reshape (ide, jde, its, ite, jts, jte, XLONG, atm_lons)
+            CALL lilac_reshape (ide, jde, its, ite, jts, jte, XLAT, atm_lats)
 
+
+
+            
            ! atm_global_nx and atm_global_ny ???????
-           
-           ! calendar stuff
-           atm_calendar  = 'GREGORIAN'
-           atm_timestep  =  DT
 
+
+           ! calendar stuff
 
            atm_start_year    = 2000
            atm_start_mon     = 1
@@ -3133,13 +3173,10 @@ CONTAINS
            atm_stop_mon      = 1
            atm_stop_day      = 2
            atm_stop_secs     = 0
-           !atm_timestep      = 1800
-           atm_calendar      = 'NOLEAP'
+           atm_timestep      =  DT
+           !atm_calendar      = 'NOLEAP'
+           atm_calendar      = 'GREGORIAN'
            atm_starttype     = 'startup'
-           atm_timestep_start    = 1
-           atm_timestep_stop = 48
-
-
 
 
 !           CALL lilac_init(&
