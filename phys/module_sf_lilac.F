@@ -45,7 +45,7 @@ module module_sf_lilac
     use shr_kind_mod, only: r8 => shr_kind_r8
     use mpi           ,  only : MPI_COMM_WORLD, MPI_COMM_NULL, MPI_Init, MPI_FINALIZE, MPI_SUCCESS
 
-
+    
     subroutine init_atm2lnd_type(begc, endc, atm2lnd)
         !
         ! !DESCRIPTION:
@@ -332,45 +332,70 @@ module module_sf_lilac
                    ,its,ite, jts,jte, kts,kte                    &
                    ,inest, sf_urban_physics,nlcat               )
 
-                  real, dimension(ims:ime, kms:kme,jms:jme),intent(in) :: zgcmxy     !atm bottom level height above surface (m)
-                  real, dimension(ims:ime, kms:kme,jms:jme),intent(in) :: forc_txy
-                  real, dimension(ims:ime, kms:kme,jms:jme),intent(in) :: forc_uxy
-                  real, dimension(ims:ime, kms:kme,jms:jme),intent(in) :: forc_vxy
-                  real, dimension(ims:ime, kms:kme,jms:jme),intent(in) :: forc_qxy
-                  real, dimension(ims:ime, kms:kme,jms:jme),intent(in) :: ps
 
-                  real, dimension (ims:ime, jms:jme)                   :: flwdsxy(ims:ime,jms:jme)           !downward longwave rad onto surface (W/m**2)
+                  real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: zgcmxy     !atm bottom level height above surface (m)
+                  real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: forc_txy   !atm bottom level temperature (Kelvin)
+                  real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: forc_uxy   !atm bottom level zonal wind (m/s)
+                  real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: forc_vxy   !atm bottom level meridional wind (m/s)
+                  real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: forc_qxy   !atm bottom level specific humidity (kg/kg)
+                  real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: ps
+                  real,  dimension (ims:ime,jms:jme)           intent(in) :: flwdsxy   ! downward longwave rad onto surface (W/m**2)
+                  real , dimension (ims:ime,jms:jme),          intent(in) :: swvisdir  ! vis direct beam solar rad onto srf (W/m**2)
+                  real , dimension (ims:ime,jms:jme),          intent(in) :: swvisdif  ! vis diffuse solar rad onto srf (W/m**2)
+                  real , dimension (ims:ime,jms:jme),          intent(in) :: swnirdir  ! nir direct beam solar rad onto srf (W/m**2)
+                  real , dimension (ims:ime,jms:jme),          intent(in) :: swnirdif  ! nir diffuse solar rad onto srf(W/m**2)
 
 
                   !1d arrays for filling in lilac
-                  real, dimenstion :: Sa_z    (:)
-                  real, dimenstion :: Sa_topo (:)  ! atm bottom level height above surface (m)
-                  real, dimenstion :: Sa_u    (:)
-                  real, dimenstion :: Sa_v    (:)
-                  real, dimenstion :: Sa_ptem (:)
-                  real, dimenstion :: Sa_pbot (:)
-                  real, dimenstion :: Sa_tbot (:)
-                  real, dimenstion :: Sa_shum (:)
-                  real, dimenstion :: Sa_shum (:)
-                  real, dimenstion :: Sa_shum (:)
-                  real, dimenstion :: Sa_shum (:)
-                  real, dimenstion :: Sa_shum (:)
+                  real, dimension :: Sa_z    (:)
+                  real, dimension :: Sa_topo (:)
+                  real, dimension :: Sa_u    (:)
+                  real, dimension :: Sa_v    (:)
+                  real, dimension :: Sa_ptem (:)
+                  real, dimension :: Sa_shum (:)
+                  real, dimension :: Sa_pbot (:)
+                  real, dimension :: Sa_tbot (:)
+                  real, dimension :: Faxa_lwdn (:)
+                  real, dimension :: Faxa_rainc (:)
+                  real, dimension :: Faxa_rainl (:)
+                  real, dimension :: Faxa_snowc (:)
+                  real, dimension :: Faxa_snowl (:)
+                  real, dimension :: Faxa_swndr (:)
+                  real, dimension :: Faxa_swvdr (:)
+                  real, dimension :: Faxa_swndf (:)
+                  real, dimension :: Faxa_swvdf (:)
 
 
-                  real, dimenstion :: flwdsxy (:)  ! downward longwave heat flux (w/m**2)
-
-
-                 integer :: im_size
-                 integer :: jm_size
+                 !integer :: im_size
+                 !integer :: jm_size
 
                   im_size = ime - ims
                   jm_size = jme - jms
 
-                  Sa_topo = reshape (zgcmxy   (ims:ime,kms,jms:jme), (/im_size* jm_size/))
+                  !Sa_topo = reshape (zgcmxy   (ims:ime,kms,jms:jme), (/im_size* jm_size/))
 
-                  flwdsxy = reshape (Faxa_lwdn(ims:ime,kms,jms:jme), (/jm_size* jm_size/))
+                  !flwdsxy = reshape (Faxa_lwdn(ims:ime,kms,jms:jme), (/jm_size* jm_size/))
 
+                  ! convert the 2d to 1d array
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_z   , )
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_topo   , zgcmxy)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_u  , forc_uxy)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_v  , forc_vxy)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_ptem  , forc_th)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_pbot  , forc_pbotxy )
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_tbot  , forc_txy)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_shum  , forc_qxy )
 
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_lwdn , flwdsxy)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_rainc , )
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_rainl , )
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_snowc , )
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_rainc , )
+
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_swndn , forc_sollxy)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_swvdr , forc_solsxy)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_swndf , forc_solldxy)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_swvdf , forc_solsdxy)
 
 
                   call lilac_atmcap_atm2lnd('Sa_z'       , Sa_z)
@@ -392,7 +417,7 @@ module module_sf_lilac
                   call lilac_atmcap_atm2lnd('Faxa_swvdf' , Faxa_swvdf)
 
 
-                    end subroutine wrf_to_lilac
+    end subroutine wrf_to_lilac
 
 
 
@@ -415,6 +440,9 @@ module module_sf_lilac
 
     end subroutine
 
+
+    subrouine lilac_reshape ()
+    ens subroutine lilac_reshape
 
 
 
