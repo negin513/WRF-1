@@ -7,128 +7,6 @@
 
 !  This MODULE CONTAINS the following routines:
 
-
-module module_lilac_reshape
-  implicit none
-contains
-
-  subroutine lilac_reshape (ide, jde, its, ite, jts, jte, var_2d, var_1d)
-    integer, intent(in) :: ide  ! domain end index, i
-    integer, intent(in) :: jde  ! domain end index, j
-    integer, intent(in) :: its  ! task start index, i
-    integer, intent(in) :: ite  ! task end index, i
-    integer, intent(in) :: jts  ! task start index, j
-    integer, intent(in) :: jte  ! task end index, j
-    integer, allocatable, intent(in)  :: var_2d (:,:)
-    integer, allocatable, intent(out) :: var_1d(:)
-
-    integer :: ite_limited  ! task end index on the mass point grid, i
-    integer :: jte_limited  ! task end index on the mass point grid, j
-    integer :: num_points
-    integer :: i, j, n
-
-
-
-    ! The very last index in both row & column space is just used on the momentum grid.
-    ! Here we are just working with the mass point grid, so we need to ignore that last
-    ! index.
-
-    num_points = ((ite_limited - its + 1) * (jte_limited - jts + 1))
-    ite_limited = min(ite, ide-1)
-    jte_limited = min(jte, jde-1)
-
-
-    allocate (var_1d (num_points))
-
-    n= 0
-
-    do j = jts, jte_limited
-       do i = its, ite_limited
-          n = n + 1
-          print *, "about to set var1d of ",n,"to var_2d of" i, j
-          var_1d(n) = var_2d(i, j)
-
-       end do
-    end do
-
-
-  end subroutine lilac_reshape
-end module module_lilac_reshape
-
-
-
-module module_create_gindex
-  implicit none
-contains
-
-  subroutine create_gindex(ide, jde, its, ite, jts, jte, gindex)
-    ! Create a gindex array on each task. This gives the list of global indices owned by
-    ! each processor, on the mass point grid.
-    integer, intent(in) :: ide  ! domain end index, i
-    integer, intent(in) :: jde  ! domain end index, j
-    integer, intent(in) :: its  ! task start index, i
-    integer, intent(in) :: ite  ! task end index, i
-    integer, intent(in) :: jts  ! task start index, j
-    integer, intent(in) :: jte  ! task end index, j
-    integer, allocatable, intent(out) :: gindex(:)
-
-    integer :: ite_limited  ! task end index on the mass point grid, i
-    integer :: jte_limited  ! task end index on the mass point grid, j
-    integer :: num_points
-    integer :: i, j, n
-
-    ! The very last index in both row & column space is just used on the momentum grid.
-    ! Here we are just working with the mass point grid, so we need to ignore that last
-    ! index.
-    ite_limited = min(ite, ide-1)
-    jte_limited = min(jte, jde-1)
-
-    num_points = ((ite_limited - its + 1) * (jte_limited - jts + 1))
-
-    print *, "ide :", ide
-    print *, "jde :", jde
-    print *, "its :", its
-    print *, "ite :", ite
-    print *, "jts :", jts
-    print *, "jte :", jte
-    print *, "ite_limited :", ite_limited
-    print *, "jte_limited :", jte_limited
-    print *, "num_points :, " , num_points
-
-    allocate(gindex(num_points))
-
-    print *, "here 3"
-    n = 0
-    do j = jts, jte_limited
-       do i = its, ite_limited
-          n = n + 1
-          print *, "about to set ", n , "of", num_points
-          ! In the following, note that we use ide-1 rather than ide for the same reason
-          ! that we need ite_limited: ide gives the domain end index on the momentum grid,
-          ! but here we're just dealing with the mass point grid, which has one less point
-          ! in each direction.
-          gindex(n) = (j-1)*(ide-1) + i
-
-
-
-          ! This should be added in later:
-          !INTEGER , DIMENSION(total_computational_MPI_ranks) :: count
-          ! INTEGER, INTENT(IN) :: total_computational_MPI_ranks
-          !DO m = 1, total_computational_MPI_ranks
-          ! IF (m==1) THEN
-          !WRITE(UNIT=10,FMT='("MPI RANK = ",I6," OF ",I6," Processes")') m-1,total_computational_MPI_ranks
-          !DO c = 1, count(m)
-          !    WRITE(UNIT=10,FMT='(I8i)' gindex
-          ! END DO
-          !ENDIF
-          !END DO
-
-       end do
-    end do
-  end subroutine create_gindex
-end module module_create_gindex
-
-
 MODULE module_physics_init
 
    USE module_state_description
@@ -3138,6 +3016,8 @@ CONTAINS
 !--------------------------------------------------------------
 ! LILAC initialization which initialize CLM
      !CASE ((LILACSCHEME))
+
+         ! TODO (NS) : Possibly hide all 
          !
            ! get comp_comm
            comp_comm = MPI_COMM_WORLD
@@ -3152,28 +3032,35 @@ CONTAINS
            !1d atm_lons and atm_lats
            !atm_lons = reshape (XLONG, (/SIZE(XLONG)/))
            !atm_lats = reshape (XLAT, (/SIZE(XLAT)/))
-            
-             
+
+           ! reshape lats and lons to 1d
             CALL lilac_reshape (ide, jde, its, ite, jts, jte, XLONG, atm_lons)
             CALL lilac_reshape (ide, jde, its, ite, jts, jte, XLAT, atm_lats)
 
 
 
-            
            ! atm_global_nx and atm_global_ny ???????
+
+           ! TODO (NS) : Make sure the here I understood the meaning of
+           ! atm_global_nx abd atm_global_ny correctly
 
 
            ! calendar stuff
 
-           atm_start_year    = 2000
-           atm_start_mon     = 1
-           atm_start_day     = 1
-           atm_start_secs    = 0
+           atm_start_year    = start_year  ! 2000
+           atm_start_mon     = start_month !1
+           atm_start_day     = start_day   !1
+           atm_start_secs    = start_second ! 0
+           ! TODO(NS) : make sure start_second is a correct input for atm_start_secs 
+
+           ! TODO (NS) How are we going to pass atm_stop_year here?? !
            atm_stop_year     = 2000
            atm_stop_mon      = 1
            atm_stop_day      = 2
            atm_stop_secs     = 0
+
            atm_timestep      =  DT
+
            !atm_calendar      = 'NOLEAP'
            atm_calendar      = 'GREGORIAN'
            atm_starttype     = 'startup'
