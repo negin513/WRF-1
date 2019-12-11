@@ -314,7 +314,12 @@ module module_sf_lilac
 
 
     subroutine wrf_to_lilac ( &
-                    zgcmxy     ,forc_qxy   ,ps   ,forc_txy    ,tsxy  &
+                    zgcmxy   , forc_txy , forc_uxy , forc_qxy, &     !dz8w     , t_phy , u_phy, v_phy, &
+                    ps  ,  flwdsxy, &      ! p8w , glw 
+                    swvisdir, swvisdif, swnirdir, swnirdif, &  ! & swvisdir, swvisdif, swnirdir, swnirdif
+                    prec  , ! !total input precipitation  (mm; accumlated precipitation within DT)
+                    dz8w     ,forc_qxy   ,ps   ,forc_txy    ,tsxy  &
+                    dz8w     ,forc_qxy   ,ps   ,forc_txy    ,tsxy  &
                    ,shxy       ,qfx        ,lhxy        ,soiflx      ,qgh       &
                    ,gsw, swdown,ra_sw_physics &
                    ,history_interval ,flwdsxy    ,smstav      ,smstot      ,qsfxy     &
@@ -333,7 +338,7 @@ module module_sf_lilac
                    ,inest, sf_urban_physics,nlcat               )
 
 
-                  real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: zgcmxy     !atm bottom level height above surface (m)
+                  real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: dz8w     !atm bottom level height above surface (m)
                   real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: forc_txy   !atm bottom level temperature (Kelvin)
                   real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: forc_uxy   !atm bottom level zonal wind (m/s)
                   real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: forc_vxy   !atm bottom level meridional wind (m/s)
@@ -345,6 +350,8 @@ module module_sf_lilac
                   real , dimension (ims:ime,jms:jme),          intent(in) :: swnirdir  ! nir direct beam solar rad onto srf (W/m**2)
                   real , dimension (ims:ime,jms:jme),          intent(in) :: swnirdif  ! nir diffuse solar rad onto srf(W/m**2)
 
+
+                  ! Optional Detailed Precipitation Partitioning Inputs
 
                   !1d arrays for filling in lilac
                   real, dimension :: Sa_z    (:)
@@ -372,13 +379,13 @@ module module_sf_lilac
                   im_size = ime - ims
                   jm_size = jme - jms
 
-                  !Sa_topo = reshape (zgcmxy   (ims:ime,kms,jms:jme), (/im_size* jm_size/))
+                  !Sa_topo = reshape (dz8w   (ims:ime,kms,jms:jme), (/im_size* jm_size/))
 
                   !flwdsxy = reshape (Faxa_lwdn(ims:ime,kms,jms:jme), (/jm_size* jm_size/))
 
                   ! convert the 2d to 1d array
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_z   , )
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_topo   , zgcmxy)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_z   , zgcmxy)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_topo   , )
                   call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_u  , forc_uxy)
                   call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_v  , forc_vxy)
                   call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_ptem  , forc_th)
