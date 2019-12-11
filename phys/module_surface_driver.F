@@ -2499,6 +2499,11 @@ CONTAINS
 
        ENDIF
 
+     !CASE (LILAC)
+          ! Wrap everything underneath a layer 
+          call lilac_run(restart_alarm_is_ringing=.true.,  stop_alarm_is_ringing=.true.)
+
+
      CASE (LSMSCHEME)
 
        IF (PRESENT(qv_curr)    .AND.  PRESENT(rainbl)        .AND.    &
