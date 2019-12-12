@@ -1,8 +1,9 @@
 !-------------------------------------------------------------------------
 module module_create_gindex
   implicit none
+!========================================================================
 contains
-
+!========================================================================
   subroutine create_gindex(ide, jde, its, ite, jts, jte, gindex)
     ! Create a gindex array on each task. This gives the list of global indices owned by
     ! each processor, on the mass point grid.
@@ -51,8 +52,6 @@ contains
           ! in each direction.
           gindex(n) = (j-1)*(ide-1) + i
 
-
-
           ! This should be added in later:
           !INTEGER , DIMENSION(total_computational_MPI_ranks) :: count
           ! INTEGER, INTENT(IN) :: total_computational_MPI_ranks
@@ -70,38 +69,33 @@ contains
   end subroutine create_gindex
 end module module_create_gindex
 
-!========================================================================
+!-------------------------------------------------------------------------
 
 module module_lilac_reshape
   implicit none
+!========================================================================
 contains
-
-! TODO (NS) : lilac_reshape should be one 2d --> 1d and 3d -->1d ...
-!Either add to subroutines for each of them
-!Or add an option for each of them to this subroutine
+!========================================================================
 
   subroutine lilac_reshape (ide, jde, its, ite, jts, jte, var_2d, var_1d)
-    integer, intent(in) :: ide  ! domain end index, i
-    integer, intent(in) :: jde  ! domain end index, j
-    integer, intent(in) :: its  ! task start index, i
-    integer, intent(in) :: ite  ! task end index, i
-    integer, intent(in) :: jts  ! task start index, j
-    integer, intent(in) :: jte  ! task end index, j
+
+    ! input/output variables
+    integer, intent(in)               :: ide  ! domain end index, i
+    integer, intent(in)               :: jde  ! domain end index, j
+    integer, intent(in)               :: its  ! task start index, i
+    integer, intent(in)               :: ite  ! task end index, i
+    integer, intent(in)               :: jts  ! task start index, j
+    integer, intent(in)               :: jte  ! task end index, j
     integer, allocatable, intent(in)  :: var_2d (:,:)
     integer, allocatable, intent(out) :: var_1d(:)
 
+    ! local variables
     integer :: ite_limited  ! task end index on the mass point grid, i
     integer :: jte_limited  ! task end index on the mass point grid, j
     integer :: num_points
     integer :: i, j, n
 
-
-
-    ! The very last index in both row & column space is just used on the momentum grid.
-    ! Here we are just working with the mass point grid, so we need to ignore that last
-    ! index.
-
-    num_points = ((ite_limited - its + 1) * (jte_limited - jts + 1))
+    num_points  = ((ite_limited - its + 1) * (jte_limited - jts + 1))
     ite_limited = min(ite, ide-1)
     jte_limited = min(jte, jde-1)
 
@@ -122,22 +116,22 @@ contains
 
   end subroutine lilac_reshape
 end module module_lilac_reshape
-
-!========================================================================
-
+!-------------------------------------------------------------------------
 
 
 
 !========================================================================
-! WRF Lilac subrouti
+! WRF Lilac subroutine
 !========================================================================
 
 module module_sf_lilac
-!-------------------------------------------------------------------------
-    use shr_kind_mod, only: r8 => shr_kind_r8
-    use mpi           ,  only : MPI_COMM_WORLD, MPI_COMM_NULL, MPI_Init, MPI_FINALIZE, MPI_SUCCESS
+  implicit none
+!========================================================================
+contains
+!========================================================================
+    use shr_kind_mod , only : r8 => shr_kind_r8
+    use mpi          , only : MPI_COMM_WORLD    , MPI_COMM_NULL , MPI_Init , MPI_FINALIZE , MPI_SUCCESS
 
-    
     ! NOTE : This subroutine is NOT being used now! 
     subroutine lilac_wrf_init ()
           ! Here everything goes that is basically pre initalization in atm_driver
@@ -174,10 +168,6 @@ module module_sf_lilac
           !   call MPI_ABORT(MPI_COMM_WORLD, ierr)
           !end if
           !close(fileunit)
-
-
-
-
 
 
           ! -----------------------------------------------------------------------------
@@ -226,6 +216,7 @@ module module_sf_lilac
     end subroutine
 
 
+!========================================================================
     ! NOTE : This subroutine is NOT being used now! 
     subroutine lilac_clm_init ( gindex_atm, atm2lnd    &
                    ,zgcmxy     ,forc_qxy   ,ps   ,forc_txy    ,tsxy  &  
@@ -299,32 +290,83 @@ module module_sf_lilac
     end subroutine lilac_clm_init
 
 
-          ! allocate and fill in atm2lnd
+    !========================================================================
 
-    subroutine lilac_ctsm_run (restart_alarm_is_ringing, stop_alarm_is_ringing, &
-                  dz8w,qv_curr,p8w, t_phy,tsk,                   &
-                  hfx,qfx,lh,grdflx,qgh,gsw,swdown,               &
-                  ra_sw_physics,history_interval,glw,smstav,smstot, &
-                  sfcrunoff,udrunoff,ivgtyp,isltyp,vegfra,        &
-                  albedo,znt,z0, tmn,xland,xice, emiss,           &
+    subroutine lilac_ctsm_run (&
+                  restart_alarm_is_ringing, stop_alarm_is_ringing, & ! in : Alarms for restart and stop
+                  dz8w   , t3d , u_phys , v_phys, & 
+                  qv3d, p8w3d ,glw &                  !  in: forcing
+                  swvisdir, swvisdif, swnirdir, swnirdif, &    ! shortwave radiation...
+                  prec_in  , dt, &                              ! total input precipitation  (mm; accumlated precipitation within dt)
+                  dx,xlat,xlong,ht,                               &
+                                                                 ! Detailed precipitation
+                  dzs , num_soil_layers , &                            ! in : model configurations
+                  xland , xice, xice_thres, &                  !  in: land ice categories
+                  tsk, hfx, qfx, tsk, lh, grdflx, &            ! in/out : lsm equivalant
+                  smstav, smstot, sfcrunof , udrunoff, albedo, & !in/out: lsm equivalant
+                  smois, snowc, snowh, snow, sr
+                  emiss, 
+
                   snowc,qsfc,rainbl,maxpatch,                     &
-                  num_soil_layers,dtbl,xtime, dt,dzs,             &
+                  dtbl,xtime, dt,dzs,             &
                   smois,tslb,snow,canwat,                         &
                   chs,chs2,sh2o,snowh,                            &
-                  u_phy,v_phy,                                    &
                   shdmin,shdmax,                                  &
                   acsnom,acsnow,                                  &
-                  dx,xlat,xlong,ht,                               &
+
                   ids,ide, jds,jde, kds,kde,                      &
                   ims,ime, jms,jme, kms,kme,                      &
-                  i_start(ij),i_end(ij), j_start(ij),j_end(ij), kts,kte, &
-                  inest,sf_urban_physics, nlcat )
+                  its,ite, jts,jte, kts,kte,                      &
+                  sf_urban_physics, nlcat  & 
+                  num_timestep, year, month, day, julian_day )   ! in : Time-related 
 
-          logical , intent (in) :: restart_alarm_is_ringing  ! Logical flag for if the alarm rings this timestep for restart
-          logical , intent (in) :: stop_alarm_is_ringing     ! Logical flag for if the alarm rings this timestep for ending the run 
+                  tmn, 
+                  !qgh,gsw,swdown,               &
+                  !ra_sw_physics,history_interval,glw, &
+                  !ivgtyp,isltyp,vegfra,        &
+                  !znt,z0, tmn           &  ! 
+
+          ! input/output variables
+          logical ,                                        intent (in) :: restart_alarm_is_ringing  ! Logical flag for if the alarm rings this timestep for restart [-]
+          logical ,                                        intent (in) :: stop_alarm_is_ringing     ! Logical flag for if the alarm rings this timestep for ending the run []
+          real, dimension( ims:ime, kms:kme, jms:jme),     intent (in) :: dz8w  ! thickness of first atmospheric layer [m] atmospheric bottom level height above surface [m]
+          real,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: t3d ! 3D atmospheric temperature [k]
+          real,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: u_phy     ! 3D U wind component [m/s]
+          real,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: v_phy     ! 3D U wind component [m/s]
+          real,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: qv3d ! 3D water vapor mixing ratio [kg/kg_dry]
+          real,    dimension( ims:ime, kms:kme, jms:jme ), intent (in   ) :: p8w3d ! 3D pressure [Pa]
+          real,    dimension( ims:ime,          jms:jme ), intent (inout) :: smstav    !soil moisture availailability for evatranspiration [not used in noahmp]
 
 
-          
+          real,    dimension(1:nsum_soil_layers),                     intent(in   ) ::  dzs       ! thickness of soil layers [m]
+          integer,                                         intent(in   ) ::  num_soil_layers ! number of soil layers
+
+
+          real,    dimension( ims:ime,          jms:jme ), intent (in) :: prec_in
+          real,                                            intent(in   ) ::  dx        ! horizontal grid spacing [m]
+yy          real,    dimension( ims:ime,          jms:jme ), intent (in) :: xlat    ! latitude [rad]
+          real,    dimension( ims:ime,          jms:jme ), intent (in) :: xlon    ! latitude [rad]
+          real,    dimension( ims:ime,          jms:jme ), intent (in) :: xland    ! land mask (
+          real,    dimension( ims:ime,          jms:jme ), intent (in) :: xice    ! fraction of seaice in a grid
+          real,    dimension( ims:ime,          jms:jme ), intent (in) :: xice_thres    ! fraction of a grid determining seaice
+          real, dimensions ( ), intent(in)  :: forc_txy ! atmospheric bottom level temperature [k] 
+         
+          sr
+          integer,  intent(in   )   ::     ids,ide, jds,jde, kds,kde,  &  ! d -> domain
+                                           ims,ime, jms,jme, kms,kme,  &  ! m -> memory
+                                           its,ite, jts,jte, kts,kte      ! t -> tile
+          integer , intent (in) :: num_timestep  ! timestep number
+          integer , intent (in) :: year      ! year YYYY
+          integer , intent (in) :: month      ! month MM
+          integer , intent (in) :: day      ! day DD
+          integer , intent (in) :: julian_day      ! Julian day 
+
+
+
+
+
+
+          !-------------------------------------------------------------------------
           ! This does the same thing as atm_driver_to_lilac 
           ! In LILAC, this is atm_driver_to_lilac
           call wrf_to_lilac (   &
@@ -352,15 +394,20 @@ module module_sf_lilac
     end subroutine lilac_ctsm_run
 
 
+          ! allocate and fill in atm2lnd
     subroutine wrf_to_lilac ( &
-                    zgcmxy   , forc_txy , forc_uxy , forc_qxy, &     !dz8w     , t_phy , u_phy, v_phy, &
-                    ps  ,  flwdsxy, &      ! p8w , glw 
-                    swvisdir, swvisdif, swnirdir, swnirdif, &  ! & swvisdir, swvisdif, swnirdir, swnirdif
-                    prec  , ! !total input precipitation  (mm; accumlated precipitation within DT)
-                    !dz8w     ,forc_qxy   ,ps   ,forc_txy    ,tsxy  &
-                    !dz8w     ,forc_qxy   ,ps   ,forc_txy    ,tsxy  &
-                   ,shxy       ,qfx        ,lhxy        ,soiflx      ,qgh       &
-                   ,gsw, swdown,ra_sw_physics &
+                    dz8w   , forc_txy , forc_uxy , forc_qxy, &   ! zgcmxy     , t_phy , u_phy, v_phy, &
+                    ps  ,  flwdsxy, &                            ! p8w , glw
+                    swvisdir, swvisdif, swnirdir, swnirdif, &    ! shortwave radiation...
+                    prec_in  , dt &                              ! total input precipitation  (mm; accumlated precipitation within dt)
+                                                                 ! Detailed precipitation
+                   ,dzs , n_soil , dx, &                            ! in : model configurations
+                    xland , xice, xice_thres, &                  !  in: land ice categories
+
+                    ! t3d, qv3d, p8w3d , sr , &                  !  in: forcing
+                    ,qfx        ,lhxy        ,soiflx      ,qgh       &
+                   ,gsw, swdown,ra_sw_physics & ! let's pass sw_radiation option....
+
                    ,history_interval ,flwdsxy    ,smstav      ,smstot      ,qsfxy     &
                    ,qdnxy      ,ivgtyp     ,isltyp      ,vegfra      ,albxy     &
                    ,znt        ,z0         ,tmn         ,xland       ,xice      &
@@ -374,7 +421,7 @@ module module_sf_lilac
                    ,ids,ide, jds,jde, kds,kde                    &
                    ,ims,ime, jms,jme, kms,kme                    &
                    ,its,ite, jts,jte, kts,kte                    &
-                   ,inest, sf_urban_physics,nlcat               )
+                   ,inest, sf_urban_physics,nlcat               )!&
 
 
                   real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: dz8w     !atm bottom level height above surface (m)
@@ -390,6 +437,10 @@ module module_sf_lilac
                   real , dimension (ims:ime,jms:jme),          intent(in) :: swnirdif  ! nir diffuse solar rad onto srf(W/m**2)
 
 
+
+
+                  real , dimension (ims:ime,jms:jme),          intent(in) :: qfx  ! nir diffuse solar rad onto srf(W/m**2)
+                  
                   ! Optional Detailed Precipitation Partitioning Inputs
 
                   !1d arrays for filling in lilac
