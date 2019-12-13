@@ -297,15 +297,15 @@ contains
                   dz8w   , t3d , u_phys , v_phys, & 
                   qv3d, p8w3d ,glw &                  !  in: forcing
                   swvisdir, swvisdif, swnirdir, swnirdif, &    ! shortwave radiation...
-                  prec_in  , dt, &                              ! total input precipitation  (mm; accumlated precipitation within dt)
+                  precip_in  , dt,  sr, &                              ! total input precipitation  (mm; accumlated precipitation within dt)
                   dx,xlat,xlong,ht,                               &
                                                                  ! Detailed precipitation
                   dzs , num_soil_layers , &                            ! in : model configurations
                   xland , xice, xice_thres, &                  !  in: land ice categories
                   tsk, hfx, qfx, tsk, lh, grdflx, &            ! in/out : lsm equivalant
                   smstav, smstot, sfcrunof , udrunoff, albedo, & !in/out: lsm equivalant
-                  smois, snowc, snowh, snow, sr
-                  emiss, 
+                  smois, snowc, snowh, snow,  &
+                  tslb, emiss, 
 
                   snowc,qsfc,rainbl,maxpatch,                     &
                   dtbl,xtime, dt,dzs,             &
@@ -329,29 +329,40 @@ contains
           ! input/output variables
           logical ,                                        intent (in) :: restart_alarm_is_ringing  ! Logical flag for if the alarm rings this timestep for restart [-]
           logical ,                                        intent (in) :: stop_alarm_is_ringing     ! Logical flag for if the alarm rings this timestep for ending the run []
-          real, dimension( ims:ime, kms:kme, jms:jme),     intent (in) :: dz8w  ! thickness of first atmospheric layer [m] atmospheric bottom level height above surface [m]
-          real,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: t3d ! 3D atmospheric temperature [k]
-          real,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: u_phy     ! 3D U wind component [m/s]
-          real,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: v_phy     ! 3D U wind component [m/s]
-          real,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: qv3d ! 3D water vapor mixing ratio [kg/kg_dry]
-          real,    dimension( ims:ime, kms:kme, jms:jme ), intent (in   ) :: p8w3d ! 3D pressure [Pa]
-          real,    dimension( ims:ime,          jms:jme ), intent (inout) :: smstav    !soil moisture availailability for evatranspiration [not used in noahmp]
-
-
+          real , dimension( ims:ime, kms:kme, jms:jme),     intent (in) :: dz8w  ! thickness of first atmospheric layer [m] atmospheric bottom level height above surface [m]
+          real ,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: t3d ! 3D atmospheric temperature [k]
+          real ,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: u_phy     ! 3D U wind component [m/s]
+          real ,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: v_phy     ! 3D U wind component [m/s]
+          real ,    dimension( ims:ime, kms:kme, jms:jme ), intent (in) :: qv3d ! 3D water vapor mixing ratio [kg/kg_dry]
+          real ,    dimension( ims:ime, kms:kme, jms:jme ), intent (in   ) :: p8w3d ! 3D pressure [Pa]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  tsk       ! surface radiative temperature [k]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  hfx       ! sensible heat flux [w m-2]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  qfx       ! latent heat flux [kg s-1 m-2]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  lh        ! latent heat flux [w m-2]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  grdflx    ! ground/snow heat flux [w m-2]
+          real ,    dimension( ims:ime,          jms:jme ), intent (inout) :: smstav    !soil moisture availailability for evatranspiration [not used in noahmp]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  smstot    ! total soil water [mm][not used]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  sfcrunoff ! accumulated surface runoff [m]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  udrunoff  ! accumulated sub-surface runoff [m]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  albedo    ! total grid albedo []
+          real ,    dimension( ims:ime, 1:nsoil, jms:jme ), intent(inout) ::  smois     ! volumetric soil moisture [m3/m3]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  snowc     ! snow cover fraction [-]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  snowh     ! physical snow depth [m]
+          real ,    dimension( ims:ime,          jms:jme ), intent(inout) ::  snow      ! snow water equivalent [mm]
+          real ,    dimension( ims:ime, 1:nsoil, jms:jme ), intent(inout) ::  tslb      ! soil temperature [k]
+          real ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  sr        ! frozen precipitation ratio [-]
+          real ,    dimension( ims:ime,          jms:jme ), intent(in   ) ::  precip_in ! total input precipitation [mm]
           real,    dimension(1:nsum_soil_layers),                     intent(in   ) ::  dzs       ! thickness of soil layers [m]
           integer,                                         intent(in   ) ::  num_soil_layers ! number of soil layers
-
-
-          real,    dimension( ims:ime,          jms:jme ), intent (in) :: prec_in
-          real,                                            intent(in   ) ::  dx        ! horizontal grid spacing [m]
-yy          real,    dimension( ims:ime,          jms:jme ), intent (in) :: xlat    ! latitude [rad]
+          real,    dimension( ims:ime,          jms:jme ), intent (in) :: prec_in       ! total input precipitation [mm]
+          real,                                            intent(in   ) ::  dt        ! timestep [s] 
+          real,                                            intent(in   ) ::  dx        ! horizontal grid spacing [m] 
+          real,    dimension( ims:ime,          jms:jme ), intent (in) :: xlat    ! latitude [rad]
           real,    dimension( ims:ime,          jms:jme ), intent (in) :: xlon    ! latitude [rad]
           real,    dimension( ims:ime,          jms:jme ), intent (in) :: xland    ! land mask (
           real,    dimension( ims:ime,          jms:jme ), intent (in) :: xice    ! fraction of seaice in a grid
           real,    dimension( ims:ime,          jms:jme ), intent (in) :: xice_thres    ! fraction of a grid determining seaice
           real, dimensions ( ), intent(in)  :: forc_txy ! atmospheric bottom level temperature [k] 
-         
-          sr
           integer,  intent(in   )   ::     ids,ide, jds,jde, kds,kde,  &  ! d -> domain
                                            ims,ime, jms,jme, kms,kme,  &  ! m -> memory
                                            its,ite, jts,jte, kts,kte      ! t -> tile
@@ -360,6 +371,46 @@ yy          real,    dimension( ims:ime,          jms:jme ), intent (in) :: xlat
           integer , intent (in) :: month      ! month MM
           integer , intent (in) :: day      ! day DD
           integer , intent (in) :: julian_day      ! Julian day 
+
+
+          ! local variables 
+          real , dimension( ims:ime, 1 , jms:jme) :: zlvl ! model forcing height [m]
+          
+          !-------------------------------------------------------------------------
+
+          
+          ! based on noah-mp first time-step sea handling....
+          if(itimestep == 1)then
+          jloop: do j=jts,jte
+              do i=its,ite
+                 if((xland(i,j)-1.5) >= 0.) then    ! open water case
+                    if(xice(i,j) == 1. .and. iprint) print *,' sea-ice at water point, i=',i,'j=',j
+                        smstav(i,j) = 1.0
+                        smstot(i,j) = 1.0
+                    do k = 1, nsoil
+                       smois(i,k,j) = 1.0
+                       tslb(i,k,j)  = 273.16
+                    enddo
+                 else
+                    if(xice(i,j) == 1.) then        ! sea-ice case
+                       smstav(i,j) = 1.0
+                       smstot(i,j) = 1.0
+                       do k = 1, nsoil
+                          smois(i,k,j) = 1.0
+                       enddo
+                    endif
+                 endif
+              enddo
+           endif                            ! end of initialization over ocean
+
+          
+
+
+
+          ! dz8w = thickness of full levels --> zlvl = dz8w/2
+
+          jloop: do j=jts,jte
+          zlvl = 0.5 * dz8w (:,
 
 
 
@@ -389,12 +440,18 @@ yy          real,    dimension( ims:ime,          jms:jme ), intent (in) :: xlat
                   inest,sf_urban_physics, nlcat )
 
 
+
+          ! Below 
+
+
+
+
           call lilac_run (restart_alarm_is_ringing=.true.,stop_alarm_is_ringing=.true.)
 
     end subroutine lilac_ctsm_run
 
 
-          ! allocate and fill in atm2lnd
+    ! allocate and fill in atm2lnd
     subroutine wrf_to_lilac ( &
                     dz8w   , forc_txy , forc_uxy , forc_qxy, &   ! zgcmxy     , t_phy , u_phy, v_phy, &
                     ps  ,  flwdsxy, &                            ! p8w , glw
@@ -474,8 +531,8 @@ yy          real,    dimension( ims:ime,          jms:jme ), intent (in) :: xlat
                   !flwdsxy = reshape (Faxa_lwdn(ims:ime,kms,jms:jme), (/jm_size* jm_size/))
 
                   ! convert the 2d to 1d array
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_z   , zgcmxy)
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_topo   , )
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_z   , dz8w(:,)
+                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_topo   , )   !height
                   call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_u  , forc_uxy)
                   call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_v  , forc_vxy)
                   call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_ptem  , forc_th)
@@ -536,10 +593,6 @@ yy          real,    dimension( ims:ime,          jms:jme ), intent (in) :: xlat
         pointer1d(n*m) => pointer2d
 
     end subroutine
-
-
-    subrouine lilac_reshape ()
-    end subroutine lilac_reshape
 
 
     subroutine init_atm2lnd_type(begc, endc, atm2lnd)
@@ -618,41 +671,6 @@ end module module_sf_lilac
 
 !========================================================================
 
-module lilac_type_mod
-
-    type atm2lnd_type
-
-      real(r8), pointer :: forc_t(:)       !atmospheric temperature (Kelvin)
-      real(r8), pointer :: forc_u(:)       !atm wind speed, east direction (m/s)
-      real(r8), pointer :: forc_v(:)       !atm wind speed, north direction (m/s)
-      real(r8), pointer :: forc_wind(:)    !atmospheric wind speed
-      real(r8), pointer :: forc_q(:)       !atmospheric specific humidity (kg/kg)
-      real(r8), pointer :: forc_hgt(:)     !atmospheric reference height (m)
-      real(r8), pointer :: forc_hgt_u(:)   !obs height of wind [m] (new)
-      real(r8), pointer :: forc_hgt_t(:)   !obs height of temperature [m] (new)
-      real(r8), pointer :: forc_hgt_q(:)   !obs height of humidity [m] (new)
-      real(r8), pointer :: forc_pbot(:)    !atmospheric pressure (Pa)
-      real(r8), pointer :: forc_th(:)      !atm potential temperature (Kelvin)
-      real(r8), pointer :: forc_vp(:)      !atmospheric vapor pressure (Pa)
-      real(r8), pointer :: forc_rho(:)     !density (kg/m**3)
-      real(r8), pointer :: forc_rh(:)      !atmospheric relative humidity (%)
-      real(r8), pointer :: forc_psrf(:)    !surface pressure (Pa)
-      real(r8), pointer :: forc_pco2(:)    !CO2 partial pressure (Pa)
-      real(r8), pointer :: forc_lwrad(:)   !downwrd IR longwave radiation (W/m**2)
-      real(r8), pointer :: forc_solad(:,:) !direct beam radiation (numrad)
-                                           !(vis=forc_sols , nir=forc_soll )
-
-      real(r8), pointer :: forc_solai(:,:) !diffuse radiation (numrad)
-                                           !(vis=forc_solsd, nir=forc_solld)
-      real(r8), pointer :: forc_solar(:)   !incident solar radiation
-      real(r8), pointer :: forc_rain(:)    !rain rate [mm/s]
-      real(r8), pointer :: forc_snow(:)    !snow rate [mm/s]
-      real(r8), pointer :: forc_ndep(:)    !nitrogen deposition rate (gN/m2/s)
-      real(r8), pointer :: rainf(:)        !ALMA rain+snow [mm/s]
-
-    end type atm2lnd_type
-
-end module lilac_type_mod
 
 
 
