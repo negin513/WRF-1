@@ -116,7 +116,40 @@ contains
 
   end subroutine lilac_reshape
 end module module_lilac_reshape
+
+
+
+
 !-------------------------------------------------------------------------
+subroutine export_to_lilac (ide, jde, its, ite, jts, jte, var_name , var_2d)
+    ! This subroutine reshapes the 2d array to 1d for Lilac
+    ! and set it in the lilac_cap.
+
+    ! in/out variables
+    integer,              intent(in) :: ids,ide, jds,jde, kds,kde,  &  ! d -> domain
+    integer,              intent(in) :: ims,ime, jms,jme, kms,kme,  &  ! m -> memory
+    integer,              intent(in) :: its,ite, jts,jte, kts,kte      ! t -> tile
+    character(len=*),     intent(in) :: var_name
+    integer, allocatable, intent(in) :: var_2d (:,:)
+
+    ! local variables
+    integer, allocatable :: var_1d (:)
+
+    ! -------------------------------------------------------------------
+    ! 1) convert the 2d to 1d array
+    call lilac_reshape (ide, jde, its, ite, jts, jte, var_name , var_2d
+   
+    ! 2) setting the value in lilac atmos cap
+    call lilac_atmcap_atm2lnd(var_name    , var_2d)
+
+    print *, "Variable ", var_name , "is set in lilac atmospheric cap!"
+
+end subroutine
+!-------------------------------------------------------------------------
+
+
+
+
 
 
 
@@ -302,7 +335,7 @@ contains
                   qv3d, p8w3d ,glw ,                               & !  in: forcing
                   swvisdir, swvisdif, swnirdir, swnirdif,          & ! shortwave radiation...
                   precip_in  , dt,  sr,                            & ! total input precipitation  (mm; accumlated precipitation within dt)
-                  dx,xlat,xlong,ht,                                &
+                  dx,xlat,xlong,topo_hgt,                                &
                                                                  ! Detailed precipitation
                   dzs , num_soil_layers , &                            ! in : model configurations
                   xland , xice, xice_thres, &                  !  in: land ice categories
@@ -435,57 +468,39 @@ contains
 
           ! dz8w = thickness of full levels --> zlvl = dz8w/2
 
-          zlvl(:,:) = 0.5 * dz8w (:,1,:) ! only first layer
-          prec_in(:,1,:)   = prec_in(:,1,:)/dt
+          do j=jts,jte
+            do i=its,ite
+              zlvl      (i,j) = 0.5 * dz8w (i,km,j) ! only first layer !topo_hgt
+              q_ratio   (i,j) = qv3d(i,km,j)/(1.0 + qv3d(i,1,j)) ! converting to mixing ration [kg/kg] -- only first atmos layer
+              prec_in   (i,j) = prec_in(i,km,j)/dt
+              snow_in   (i,j) = prec_in (i,km,j) * sr(i,j)     /dt  ! devide by timestep for flux 
+              rain_in   (i,j) = prec_in (i,km,j) * (1-sr(i,j)) /dt
+              forc_psrf (i,j) = p8w3d (i,km,j)
+              forc_t    (i,j) = t3d   (i,km,j)
+              ! calculate potential temperature
+              forc_th (i,j)  = forc_t (i,j) * (forc_psrf(i,j)/forc_pbot(i,j)) ** (rair/cpair)     ! pot temp = temp * (p0/p1) ^ (r/cp)
+            enddo
+          enddo
 
-          q_ratio (:,:)  = qv3d(:,1,:)/(1.0 + qv3d(:,1,:)) ! converting to mixing ration [kg/kg] -- only first atmos layer
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_z"    , zlvl(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_topo" , hgt(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_u"    , forc_uxy(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_v"    , forc_vxy(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_ptem"    , forc_th(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_pbot"  , forc_pbotxy(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_tbot"  , forc_txy(:,:) )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_shum"  , forc_qxy(:,:) )
 
-          snow_in (:,:)  = sr(:,:) *precip_in(:,:)
-          rain_in (:,:)  = precip_in (:,:) - snow_in (:,:) 
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_lwdn"  ,flwdsxy(:,:) )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_rainc"  ,  )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_rainl"  ,  )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_snowc"  ,  )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_snowl"  ,  )
 
-
-          forc_psrf (:,:) =  p8w3d (:,1,:) 
-          forc_t  (:,:)  = t3d (:,1,:)
-
-          ! calculate potential temperature
-          forc_th (:,:)  = forc_t (:,:) * forc_psrf(:,:)/forc_pbot(:,:) ** (rair/)     ! pot temp = temp * (p0/p1) ^ (r/cp)
-          !-------------------------------------------------------------------------
-          ! This does the same thing as atm_driver_to_lilac 
-          ! In LILAC, this is atm_driver_to_lilac
-          call wrf_to_lilac (   &
-                  zlvl, ! Sa_z
-                  hgt , ! Sa_topo
-                  u_phy , !Sa_u
-                  v_phy , !Sa_v
-                  t3d   , !Sa_ptem
-                  qv3d  ,! Sa_shum
-                    ! Sa_pbot
-                    ! Sa_tbot
-
-              dz8w,qv_curr,p8w, t_phy,tsk,                   &
-                  hfx,qfx,lh,grdflx,qgh,gsw,swdown,               &
-                  ra_sw_physics,history_interval,glw,smstav,smstot, &
-                  sfcrunoff,udrunoff,ivgtyp,isltyp,vegfra,        &
-                  albedo,znt,z0, tmn,xland,xice, emiss,           &
-                  snowc,qsfc,rainbl,maxpatch,                     &
-                  num_soil_layers,dtbl,xtime, dt,dzs,             &
-                  smois,tslb,snow,canwat,                         &
-                  chs,chs2,sh2o,snowh,                            &
-                  u_phy,v_phy,                                    &
-                  shdmin,shdmax,                                  &
-                  acsnom,acsnow,                                  &
-                  dx,xlat,xlong,ht,                               &
-                  ids,ide, jds,jde, kds,kde,                      &
-                  ims,ime, jms,jme, kms,kme,                      &
-                  i_start(ij),i_end(ij), j_start(ij),j_end(ij), kts,kte, &
-                  inest,sf_urban_physics, nlcat )
-
-
-
-          ! Below 
-
-
-
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swndn" , forc_sollxy)
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swvdr" , forc_solsxy)
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swndf" , forc_solldxy)
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swvdf" , forc_solsdxy)
 
           call lilac_run (restart_alarm_is_ringing=.true.,stop_alarm_is_ringing=.true.)
 
@@ -561,55 +576,8 @@ contains
                   real, dimension :: Faxa_swvdf (:)
 
 
-                 !integer :: im_size
-                 !integer :: jm_size
-
-                  im_size = ime - ims
-                  jm_size = jme - jms
-
-                  !Sa_topo = reshape (dz8w   (ims:ime,kms,jms:jme), (/im_size* jm_size/))
-
-                  !flwdsxy = reshape (Faxa_lwdn(ims:ime,kms,jms:jme), (/jm_size* jm_size/))
-
-                  ! convert the 2d to 1d array
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_z   , zlvl(:,:))
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_topo   , )   !height
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_u  , forc_uxy)
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_v  , forc_vxy)
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_ptem  , forc_th)
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_pbot  , forc_pbotxy )
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_tbot  , forc_txy)
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Sa_shum  , forc_qxy )
-
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_lwdn , flwdsxy)
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_rainc , )
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_rainl , )
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_snowc , )
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_rainc , )
-
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_swndn , forc_sollxy)
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_swvdr , forc_solsxy)
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_swndf , forc_solldxy)
-                  call lilac_reshape (ide, jde, its, ite, jts, jte, Faxa_swvdf , forc_solsdxy)
 
 
-                  call lilac_atmcap_atm2lnd('Sa_z'       , Sa_z)
-                  call lilac_atmcap_atm2lnd('Sa_topo'    , Sa_topo)
-                  call lilac_atmcap_atm2lnd('Sa_u'       , Sa_u)
-                  call lilac_atmcap_atm2lnd('Sa_v'       , Sa_v)
-                  call lilac_atmcap_atm2lnd('Sa_ptem'    , Sa_ptem)
-                  call lilac_atmcap_atm2lnd('Sa_pbot'    , Sa_pbot)
-                  call lilac_atmcap_atm2lnd('Sa_tbot'    , Sa_tbot)
-                  call lilac_atmcap_atm2lnd('Sa_shum'    , Sa_shum)
-                  call lilac_atmcap_atm2lnd('Faxa_lwdn'  , Faxa_lwdn)
-                  call lilac_atmcap_atm2lnd('Faxa_rainc' , Faxa_rainc)
-                  call lilac_atmcap_atm2lnd('Faxa_rainl' , Faxa_rainl)
-                  call lilac_atmcap_atm2lnd('Faxa_snowc' , Faxa_snowc)
-                  call lilac_atmcap_atm2lnd('Faxa_snowl' , Faxa_snowl)
-                  call lilac_atmcap_atm2lnd('Faxa_swndr' , Faxa_swndr)
-                  call lilac_atmcap_atm2lnd('Faxa_swvdr' , Faxa_swvdr)
-                  call lilac_atmcap_atm2lnd('Faxa_swndf' , Faxa_swndf)
-                  call lilac_atmcap_atm2lnd('Faxa_swvdf' , Faxa_swvdf)
 
 
     end subroutine wrf_to_lilac
