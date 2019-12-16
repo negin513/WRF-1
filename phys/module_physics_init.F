@@ -3029,17 +3029,16 @@ CONTAINS
            CALL create_gindex(ide, jde, its, ite, jts, jte, atm_global_index)
 
 
-           !1d atm_lons and atm_lats
-           !atm_lons = reshape (XLONG, (/SIZE(XLONG)/))
-           !atm_lats = reshape (XLAT, (/SIZE(XLAT)/))
-
-           ! reshape lats and lons to 1d
+           ! reshape lats and lons to 1d for lilac
             CALL lilac_reshape (ide, jde, its, ite, jts, jte, XLONG, atm_lons)
             CALL lilac_reshape (ide, jde, its, ite, jts, jte, XLAT, atm_lats)
 
 
 
            ! atm_global_nx and atm_global_ny ???????
+
+           atm_global_nx = ide-ids
+           atm_global_ny = jde-jds
 
            ! TODO (NS) : Make sure the here I understood the meaning of
            ! atm_global_nx abd atm_global_ny correctly
