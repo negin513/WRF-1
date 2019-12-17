@@ -118,41 +118,6 @@ contains
 end module module_lilac_reshape
 
 
-
-
-!-------------------------------------------------------------------------
-subroutine export_to_lilac (ide, jde, its, ite, jts, jte, var_name , var_2d)
-    ! This subroutine reshapes the 2d array to 1d for Lilac
-    ! and set it in the lilac_cap.
-
-    ! in/out variables
-    integer,              intent(in) :: ids,ide, jds,jde, kds,kde,  &  ! d -> domain
-    integer,              intent(in) :: ims,ime, jms,jme, kms,kme,  &  ! m -> memory
-    integer,              intent(in) :: its,ite, jts,jte, kts,kte      ! t -> tile
-    character(len=*),     intent(in) :: var_name
-    integer, allocatable, intent(in) :: var_2d (:,:)
-
-    ! local variables
-    integer, allocatable :: var_1d (:)
-
-    ! -------------------------------------------------------------------
-    ! 1) convert the 2d to 1d array
-    call lilac_reshape (ide, jde, its, ite, jts, jte, var_name , var_2d
-   
-    ! 2) setting the value in lilac atmos cap
-    call lilac_atmcap_atm2lnd(var_name    , var_2d)
-
-    print *, "Variable ", var_name , "is set in lilac atmospheric cap!"
-
-end subroutine
-!-------------------------------------------------------------------------
-
-
-
-
-
-
-
 !========================================================================
 ! WRF Lilac subroutine
 !========================================================================
@@ -169,8 +134,49 @@ contains
     ! parameters
     real, parameter :: rair   = 287.0423  !gas constant for dry air      [J/kg/K]
     real, parameter :: cpair  = 1.00464e3 !specific heat of dry air      [J/kg/K]
-    ! NOTE : This subroutine is NOT being used now! 
-    subroutine lilac_wrf_init ()
+!-------------------------------------------------------------------------
+    subroutine export_to_lilac (ide, jde, its, ite, jts, jte, var_name , var_2d)
+        ! This subroutine reshapes the 2d array to 1d for Lilac
+        ! and set it in the lilac_cap.
+
+        ! in/out variables
+        integer,              intent(in) :: ids,ide, jds,jde, kds,kde,  &  ! d -> domain
+        integer,              intent(in) :: ims,ime, jms,jme, kms,kme,  &  ! m -> memory
+        integer,              intent(in) :: its,ite, jts,jte, kts,kte      ! t -> tile
+        character(len=*),     intent(in) :: var_name
+        integer, allocatable, intent(in) :: var_2d (:,:)
+
+        ! local variables
+        integer, allocatable :: var_1d (:)
+
+        ! -------------------------------------------------------------------
+        ! 1) convert the 2d to 1d array
+        call lilac_reshape (ide, jde, its, ite, jts, jte, var_name , var_2d)
+       
+        ! 2) setting the value in lilac atmos cap
+        call lilac_atmcap_atm2lnd(var_name    , var_2d)
+
+        print *, "Variable ", var_name , "is set in lilac atmospheric cap!"
+
+    end subroutine
+    !-------------------------------------------------------------------------
+
+    subroutine import_from_lilac (ide, jde, its, ite, jts, jte, var_name , var_1d, var_2d)
+        ! This subroutine reshapes the 1d array to 2d from Lilac
+        ! and send back to atmosphere
+
+        ! in/out variables
+        integer,              intent(in) :: ids,ide, jds,jde, kds,kde,  &  ! d -> domain
+        integer,              intent(in) :: ims,ime, jms,jme, kms,kme,  &  ! m -> memory
+        integer,              intent(in) :: its,ite, jts,jte, kts,kte      ! t -> tile
+        character(len=*),     intent(in) :: var_name
+        integer, allocatable, intent(in) :: var_2d (:,:)
+        integer, allocatable, intent(in) :: var_1d (:)
+
+    end subroutine
+
+        ! NOTE : This subroutine is NOT being used now! 
+    subroutine wrf_lilac_init ()
           ! Here everything goes that is basically pre initalization in atm_driver
           ! This is mostly for description of what has been done in atm_driver and
           ! how it is translated for WRF
@@ -252,90 +258,15 @@ contains
 
     end subroutine
 
-
-!========================================================================
-    ! NOTE : This subroutine is NOT being used now! 
-    subroutine lilac_clm_init ( gindex_atm, atm2lnd    &
-                   ,zgcmxy     ,forc_qxy   ,ps   ,forc_txy    ,tsxy  &  
-                   ,shxy       ,qfx        ,lhxy        ,soiflx      ,qgh       &
-                   ,gsw, swdown,ra_sw_physics &   
-                   ,history_interval ,flwdsxy    ,smstav      ,smstot      ,qsfxy     &
-                   ,qdnxy      ,ivgtyp     ,isltyp      ,vegfra      ,albxy     &
-                   ,znt        ,z0         ,tmn         ,xland       ,xice      &
-                   ,emiss      ,snowc      ,qsfc        ,prec        ,maxpatch  &
-                   ,num_soil_layers        ,dt          ,xtime      ,dtwrf ,dzs &
-                   ,smois      ,tslb       ,snow        ,canwat      ,chs       &
-                   ,chs2                                                        &
-                   ,sh2o       ,snowh      ,forc_uxy    ,forc_vxy    ,shdmin    &
-                   ,shdmax     ,acsnom     ,acsnow      ,dx          ,xlat      &
-                   ,xlong,ht                                                    &   
-                   ,ids,ide, jds,jde, kds,kde                    &
-                   ,ims,ime, jms,jme, kms,kme                    &
-                   ,its,ite, jts,jte, kts,kte                    &
-                   ,inest, sf_urban_physics,nlcat)
-
-
-          type (atm2lnd_type), intent(inout):: atm2lnd
-
-
-          
- 
-          ! arguments
-          integer , allocatable, intent(inout) :: gindex_atm(:)
-          type (atm2lnd_type), intent(inout):: atm2lnd
-
-          integer                              :: ntasks
-          integer                              :: mytask
-          character(len=128)                   :: filename
-          !-----------------------------------------------------------------
-          ! MPI initalization is done in WRF initializations
-
-          ! decomposition in WRF
-          ! allocate and initalize atm2lnd
-          call init_atm2lnd_type(begc, endc,atm2lnd)
-
-
-          atm2lnd%forc_t     (begc:endc ) = forc_txy
-          atm2lnd%forc_u     (begc:endc ) = forc_uxy
-          atm2lnd%forc_v     (begc:endc ) = forc_vxy
-          atm2lnd%forc_wind  (begc:endc ) = sqrt(forc_uxy**2 + forc_vxy**2)
-          atm2lnd%forc_q     (begc:endc ) = forc_qxy
-          !atm2lnd%forc_rh    (begc:endc ) = 
-          atm2lnd%forc_hgt   (begc:endc ) = zgcmxy
-          atm2lnd%forc_hgt_u (begc:endc ) = zgcmxy !observational height of wind [m]
-          atm2lnd%forc_hgt_t (begc:endc ) = zgcmxy !observational height of wind [m]
-          atm2lnd%forc_hgt_q (begc:endc ) = zgcmxy !observational height of wind [m]
-
-          atm2lnd%forc_pbot  (begc:endc ) = forc_pbotxy
-          atm2lnd%forc_psrf  (begc:endc ) = forc_psrfxy
-          !atm2lnd%forc_th    (begc:endc ) = 
-          !atm2lnd%forc_vp    (begc:endc ) = 
-          !atm2lnd%forc_rho   (begc:endc ) = 
-          atm2lnd%forc_pco2  (begc:endc ) = pco2 * clm_a2l%forc_pbot(g)
-          atm2lnd%forc_po2  (begc:endc )  = po2  * clm_a2l%forc_pbot(g)
-
-          !Fluxes
-          atm2lnd%forc_lwrad (begc:endc ) = flwdsxy
-          clm_a2l%forc_solad (begc:endc ,1) = forc_solsxy
-          clm_a2l%forc_solad (begc:endc ,2) = forc_sollxy
-          atm2lnd%forc_solai (begc:endc ,1) = forc_solsdxy
-          atm2lnd%forc_solai (begc:endc ,2) = forc_solldxy
-          atm2lnd%forc_solar (begc:endc )   =   forc_solsxy + forc_sollxy &
-                                                + forc_solsdxy + forc_solldxy
-
-
-    end subroutine lilac_clm_init
-
-
     !========================================================================
 
-    subroutine lilac_ctsm_run (                                    &
+    subroutine wrf_lilac_run (                                    &
                   restart_alarm_is_ringing, stop_alarm_is_ringing, & ! in : Alarms for restart and stop
                   dz8w   , t3d , u_phys , v_phys,                  &
-                  qv3d, p8w3d ,glw ,                               & !  in: forcing
+                  qv3d   , p8w3d ,glw   ,                               & !  in: forcing
                   swvisdir, swvisdif, swnirdir, swnirdif,          & ! shortwave radiation...
-                  precip_in  , dt,  sr,                            & ! total input precipitation  (mm; accumlated precipitation within dt)
-                  dx,xlat,xlong,topo_hgt,                                &
+                  precip_in , dt,  sr,                            & ! total input precipitation  (mm; accumlated precipitation within dt)
+                  dx , xlat , xlong , topo_hgt ,                                &
                                                                  ! Detailed precipitation
                   dzs , num_soil_layers , &                            ! in : model configurations
                   xland , xice, xice_thres, &                  !  in: land ice categories
@@ -357,7 +288,6 @@ contains
                   sf_urban_physics, nlcat,   &
                   num_timestep, year, month, day, julian_day )   ! in : Time-related 
 
-                  tmn, 
                   !qgh,gsw,swdown,               &
                   !ra_sw_physics,history_interval,glw, &
                   !ivgtyp,isltyp,vegfra,        &
@@ -371,7 +301,8 @@ contains
           real ,    dimension( ims:ime, kms:kme, jms:jme ), intent (in)    :: u_phy                    ! 3D U wind component [m/s]
           real ,    dimension( ims:ime, kms:kme, jms:jme ), intent (in)    :: v_phy                    ! 3D U wind component [m/s]
           real ,    dimension( ims:ime, kms:kme, jms:jme ), intent (in)    :: qv3d                     ! 3D water vapor mixing ratio [kg/kg_dry]
-          real ,    dimension( ims:ime, kms:kme, jms:jme ), intent (in   ) :: p8w3d                    ! 3D pressure [Pa]
+          real ,    dimension( ims:ime, kms:kme, jms:jme ), intent (in)    :: p8w3d                    ! 3D pressure [Pa]
+          real ,    dimension( ims:ime,jms:jme),             intent(in)    :: glw                     ! longwave down at surface [w m-2]
           real ,    dimension( ims:ime,          jms:jme ), intent (inout) :: tsk                      ! surface radiative temperature [k]
           real ,    dimension( ims:ime,          jms:jme ), intent (inout) :: hfx                      ! sensible heat flux [w m-2]
           real ,    dimension( ims:ime,          jms:jme ), intent (inout) :: qfx                      ! latent heat flux [kg s-1 m-2]
@@ -382,7 +313,7 @@ contains
           real ,    dimension( ims:ime,          jms:jme ), intent (inout) :: sfcrunoff                ! accumulated surface runoff [m]
           real ,    dimension( ims:ime,          jms:jme ), intent (inout) :: udrunoff                 ! accumulated sub-surface runoff [m]
           real ,    dimension( ims:ime,          jms:jme ), intent (inout) :: albedo                   ! total grid albedo []
-          real ,    dimension( ims:ime,          jms:jme ), intent (inout)::emiss !  surface bulk emissivity
+          real ,    dimension( ims:ime,          jms:jme ), intent (inout) :: emiss !  surface bulk emissivity
           real ,    dimension( ims:ime, 1:nsoil, jms:jme ), intent (inout) :: smois                    ! volumetric soil moisture [m3/m3]
           real ,    dimension( ims:ime,          jms:jme ), intent (inout) :: snowc                    ! snow cover fraction [-]
           real ,    dimension( ims:ime,          jms:jme ), intent (inout) :: snowh                    ! physical snow depth [m]
@@ -404,7 +335,10 @@ contains
 
            real,    dimension( ims:ime,          jms:jme ), intent(inout) ::qsfc      ! bulk surface mixing ratio
 
-
+           real , dimension (ims:ime,jms:jme),          intent(in) :: swvisdir  ! vis direct beam solar rad onto surface (W/m**2)
+           real , dimension (ims:ime,jms:jme),          intent(in) :: swvisdif  ! vis diffuse solar rad onto surface (W/m**2)
+           real , dimension (ims:ime,jms:jme),          intent(in) :: swnirdir  ! nir direct beam solar rad onto surface (W/m**2)
+           real , dimension (ims:ime,jms:jme),          intent(in) :: swnirdif  ! nir diffuse solar rad onto surface(W/m**2)
 
 
 
@@ -418,7 +352,7 @@ contains
            real, dimension(ims:ime,jms:jme),intent(out)  ::  alswvisdif
            real, dimension(ims:ime,jms:jme),intent(out)  ::  alswnirdir
            real, dimension(ims:ime,jms:jme),intent(out)  ::  alswnirdif
-          real, dimensions ( ), intent(in)  :: forc_txy ! atmospheric bottom level temperature [k] 
+           real, dimensions ( ), intent(in)  :: forc_txy ! atmospheric bottom level temperature [k] 
 
 
 
@@ -470,41 +404,71 @@ contains
 
           do j=jts,jte
             do i=its,ite
-              zlvl      (i,j) = 0.5 * dz8w (i,km,j) ! only first layer !topo_hgt
+              zlvl      (i,j) = 0.5 * dz8w (i,km,j) ! only first layer
+              forc_uxy  (i,j) =  u_phy (i,km,j)
+              forc_vxy  (i,j) =  v_phy (i,km,j)
+              ! calculate potential temperature
+              forc_th   (i,j) = forc_t (i,j) * (forc_psrf(i,j)/forc_pbot(i,j)) ** (rair/cpair)     ! pot temp = temp * (p0/p1) ^ (r/cp)
+              forc_pbotxy (i,j) = p8w3d(i,km,j)   ! atmosphere bottom level pressure [pa]
+              forc_t    (i,j) = t3d (i,km,j)    ! atmosphere bottom level temperature [k]
               q_ratio   (i,j) = qv3d(i,km,j)/(1.0 + qv3d(i,1,j)) ! converting to mixing ration [kg/kg] -- only first atmos layer
               prec_in   (i,j) = prec_in(i,km,j)/dt
               snow_in   (i,j) = prec_in (i,km,j) * sr(i,j)     /dt  ! devide by timestep for flux 
               rain_in   (i,j) = prec_in (i,km,j) * (1-sr(i,j)) /dt
               forc_psrf (i,j) = p8w3d (i,km,j)
-              forc_t    (i,j) = t3d   (i,km,j)
-              ! calculate potential temperature
-              forc_th (i,j)  = forc_t (i,j) * (forc_psrf(i,j)/forc_pbot(i,j)) ** (rair/cpair)     ! pot temp = temp * (p0/p1) ^ (r/cp)
+              ! We send all the rain to rainc
+              rainc_in  (i,j) = rain_in(i,j)
+              rainl_in  (i,j) = 0.0
+              snowc_in  (i,j) = snow_in(i,j)
+              snowl_in  (i,j) = 0.0
             enddo
           enddo
 
           call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_z"    , zlvl(:,:))
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_topo" , hgt(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_topo" , topo_hgt(:,:))
           call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_u"    , forc_uxy(:,:))
           call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_v"    , forc_vxy(:,:))
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_ptem"    , forc_th(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_ptem"  , forc_th(:,:))
           call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_pbot"  , forc_pbotxy(:,:))
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_tbot"  , forc_txy(:,:) )
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_shum"  , forc_qxy(:,:) )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_tbot"  , forc_t(:,:) )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_shum"  , q_ratio(:,:) )
 
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_lwdn"  ,flwdsxy(:,:) )
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_rainc"  ,  )
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_rainl"  ,  )
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_snowc"  ,  )
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_snowl"  ,  )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_lwdn"  , glw(:,:) )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_rainc" , rainc_in (:,:)  )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_rainl" , rainl_in (:,:) )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_snowc" , snowc_in(:,:) )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_snowl" , snowl_in(:,:) )
 
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swndn" , forc_sollxy)
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swvdr" , forc_solsxy)
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swndf" , forc_solldxy)
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swvdf" , forc_solsdxy)
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swndn" , swnirdir  (:,:) )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swvdr" , swvisdir  (:,:) )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swndf" , swnirdif  (:,:) )
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Faxa_swvdf" , swvisdif  (:,:) )
+
+
+          ! -----------------------------------------------------------------------------
+          !  Run lilac (lilac_run)
+          ! -----------------------------------------------------------------------------
 
           call lilac_run (restart_alarm_is_ringing=.true.,stop_alarm_is_ringing=.true.)
 
-    end subroutine lilac_ctsm_run
+          ! -----------------------------------------------------------------------------
+          !  import from lilac 
+          ! -----------------------------------------------------------------------------
+
+          !call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_lfrin",  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_t",  )    !actual temperature of land
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_tref",  ) !2m reference temperature
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_qref",  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_avsdr",  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_anidr",  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_avsdf",  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_anidf",  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_snowh",  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_u10",  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_fv",  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_ram1",  )
+
+    end subroutine wrf_lilac_run
 
 
     ! allocate and fill in atm2lnd
@@ -583,102 +547,9 @@ contains
     end subroutine wrf_to_lilac
 
 
-
-
-
-
-
-    ! For now the below subroutine is not used and we are directly using reshape
-    subroutine ptrcast (pointer1d, pointer2d)
-        ! If we want to avoid a copy for wrf to lilac...
-    ! this convert the 2d pointers to 1d pointer for passing to lilac
-        real, pointer :: pointer1d(:)
-        real, pointer :: pointer2d(:,:)
-        integer       :: n
-        integer       :: m
-
-
-        allocate (pointer2d (n , m) )
-        pointer1d(n*m) => pointer2d
-
-    end subroutine
-
-
-    subroutine init_atm2lnd_type(begc, endc, atm2lnd)
-        !
-        ! !DESCRIPTION:
-        ! Initialize atmospheric variables required by the land
-        !
-        ! !ARGUMENTS:
-          implicit none
-          integer, intent(in) :: begc, endc
-          type (atm2lnd_type), intent(inout):: atm2lnd
-
-        ! !LOCAL VARIABLES:
-          real(r8) :: ival   ! initial value
-          integer  :: begc_atm, end_atm
-        !-----------------------------------------------------------------
-        !allocating these values from atmosphere for now!
-
-          allocate(atm2lnd%forc_t     (begc:endc) )
-          allocate(atm2lnd%forc_u     (begc:endc) )
-          allocate(atm2lnd%forc_v     (begc:endc) )
-          allocate(atm2lnd%forc_wind  (begc:endc) )
-          allocate(atm2lnd%forc_q     (begc:endc) )
-          allocate(atm2lnd%forc_rh    (begc:endc) )
-          allocate(atm2lnd%forc_hgt   (begc:endc) )
-          allocate(atm2lnd%forc_hgt_u (begc:endc) )
-          allocate(atm2lnd%forc_hgt_t (begc:endc) )
-          allocate(atm2lnd%forc_hgt_q (begc:endc) )
-          allocate(atm2lnd%forc_pbot  (begc:endc) )
-          allocate(atm2lnd%forc_th    (begc:endc) )
-          allocate(atm2lnd%forc_vp    (begc:endc) )
-          allocate(atm2lnd%forc_rho   (begc:endc) )
-          allocate(atm2lnd%forc_psrf  (begc:endc) )
-          allocate(atm2lnd%forc_pco2  (begc:endc) )
-          allocate(atm2lnd%forc_lwrad (begc:endc) )
-          allocate(atm2lnd%forc_solad (begc:endc ,numrad))
-          allocate(atm2lnd%forc_solai (begc:endc ,numrad))
-          allocate(atm2lnd%forc_solar (begc:endc))
-          allocate(atm2lnd%forc_rain  (begc:endc))
-          allocate(atm2lnd%forc_snow  (begc:endc))
-          allocate(atm2lnd%forc_ndep  (begc:endc))
-          allocate(atm2lnd%rainf      (begc:endc))
-
-
-          ! should we initialize to a special value????
-          atm2lnd%forc_t     (begc:endc ) = ival
-          atm2lnd%forc_u     (begc:endc ) = ival
-          atm2lnd%forc_v     (begc:endc ) = ival
-          atm2lnd%forc_wind  (begc:endc ) = ival
-          atm2lnd%forc_q     (begc:endc ) = ival
-          atm2lnd%forc_rh    (begc:endc ) = ival
-          atm2lnd%forc_hgt   (begc:endc ) = ival
-          atm2lnd%forc_hgt_u (begc:endc ) = ival
-          atm2lnd%forc_hgt_t (begc:endc ) = ival
-          atm2lnd%forc_hgt_q (begc:endc ) = ival
-          atm2lnd%forc_pbot  (begc:endc ) = ival
-          atm2lnd%forc_th    (begc:endc ) = ival
-          atm2lnd%forc_vp    (begc:endc ) = ival
-          atm2lnd%forc_rho   (begc:endc ) = ival
-          atm2lnd%forc_psrf  (begc:endc ) = ival
-          atm2lnd%forc_pco2  (begc:endc ) = ival
-          atm2lnd%forc_lwrad (begc:endc ) = ival
-          atm2lnd%forc_solad (begc:endc ,1:numrad) = ival
-          atm2lnd%forc_solai (begc:endc ,1:numrad) = ival
-          atm2lnd%forc_solar (begc:endc ) = ival
-          atm2lnd%forc_rain  (begc:endc ) = ival
-          atm2lnd%forc_snow  (begc:endc ) = ival
-          atm2lnd%forc_ndep  (begc:endc ) = ival
-          atm2lnd%rainf      (begc:endc ) = ival
-
-    end subroutine init_atm2lnd_type
-
-
 end module module_sf_lilac
 
 
-!========================================================================
 
 
 
