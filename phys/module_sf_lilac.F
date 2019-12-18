@@ -95,10 +95,10 @@ contains
     integer :: num_points
     integer :: i, j, n
 
-    num_points  = ((ite_limited - its + 1) * (jte_limited - jts + 1))
     ite_limited = min(ite, ide-1)
     jte_limited = min(jte, jde-1)
 
+    num_points  = ((ite_limited - its + 1) * (jte_limited - jts + 1))
 
     allocate (var_1d (num_points))
 
@@ -176,6 +176,8 @@ contains
     end subroutine
 
         ! NOTE : This subroutine is NOT being used now! 
+    subroutine wrf_lilac_init ()
+    end subroutine
     subroutine wrf_lilac_init ()
           ! Here everything goes that is basically pre initalization in atm_driver
           ! This is mostly for description of what has been done in atm_driver and
@@ -456,13 +458,13 @@ contains
           ! -----------------------------------------------------------------------------
 
           !call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_lfrin",  )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_t",  )    !actual temperature of land
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_t", forc_t(:,:) )    !actual temperature of land
           call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_tref",  ) !2m reference temperature
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_qref",  )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_avsdr",  )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_anidr",  )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_avsdf",  )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_anidf",  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_qref", q_ratio )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_avsdr", alswvisdir  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_anidr", alswnirdir  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_avsdf", alswvisdif )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_anidf", alswnirdif )
           call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_snowh",  )
           call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_u10",  )
           call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_fv",  )
