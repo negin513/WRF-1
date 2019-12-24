@@ -1,5 +1,15 @@
-!-------------------------------------------------------------------------
-module module_create_gindex
+!========================================================================
+! WRF Lilac subroutine
+!========================================================================
+
+module module_sf_lilac
+    use shr_kind_mod , only : r8 => shr_kind_r8
+    use mpi          , only : MPI_COMM_WORLD    , MPI_COMM_NULL , MPI_Init , MPI_FINALIZE , MPI_SUCCESS
+
+    ! parameters
+    real, parameter :: rair   = 287.0423  !gas constant for dry air      [J/kg/K]
+    real, parameter :: cpair  = 1.00464e3 !specific heat of dry air      [J/kg/K]
+
   implicit none
 !========================================================================
 contains
@@ -67,17 +77,47 @@ contains
        end do
     end do
   end subroutine create_gindex
-end module module_create_gindex
 
 !-------------------------------------------------------------------------
+  subroutine reshape_forlilac (ide, jde, its, ite, jts, jte, var_2d, var_1d)
 
-module module_lilac_reshape
-  implicit none
-!========================================================================
-contains
-!========================================================================
+    ! input/output variables
+    integer, intent(in)               :: ide  ! domain end index, i
+    integer, intent(in)               :: jde  ! domain end index, j
+    integer, intent(in)               :: its  ! task start index, i
+    integer, intent(in)               :: ite  ! task end index, i
+    integer, intent(in)               :: jts  ! task start index, j
+    integer, intent(in)               :: jte  ! task end index, j
+    integer, allocatable, intent(in)  :: var_2d (:,:)
+    integer, allocatable, intent(out) :: var_1d(:)
 
-  subroutine lilac_reshape (ide, jde, its, ite, jts, jte, var_2d, var_1d)
+    ! local variables
+    integer :: ite_limited  ! task end index on the mass point grid, i
+    integer :: jte_limited  ! task end index on the mass point grid, j
+    integer :: num_points
+    integer :: i, j, n
+
+    ite_limited = min(ite, ide-1)
+    jte_limited = min(jte, jde-1)
+
+    num_points  = ((ite_limited - its + 1) * (jte_limited - jts + 1))
+
+    allocate (var_1d (num_points))
+
+    n= 0
+
+    do j = jts, jte_limited
+       do i = its, ite_limited
+          n = n + 1
+          print *, "about to set var1d of ",n,"to var_2d of" i, j
+          var_1d(n) = var_2d(i, j)
+
+       end do
+    end do
+
+  end subroutine reshape_forlilac
+
+  subroutine reshape_fromlilac (ide, jde, its, ite, jts, jte, var_2d, var_1d)
 
     ! input/output variables
     integer, intent(in)               :: ide  ! domain end index, i
@@ -114,26 +154,8 @@ contains
     end do
 
 
-  end subroutine lilac_reshape
-end module module_lilac_reshape
+  end subroutine reshape_fromlilac
 
-
-!========================================================================
-! WRF Lilac subroutine
-!========================================================================
-
-module module_sf_lilac
-
-  implicit none
-!========================================================================
-contains
-!========================================================================
-    use shr_kind_mod , only : r8 => shr_kind_r8
-    use mpi          , only : MPI_COMM_WORLD    , MPI_COMM_NULL , MPI_Init , MPI_FINALIZE , MPI_SUCCESS
-
-    ! parameters
-    real, parameter :: rair   = 287.0423  !gas constant for dry air      [J/kg/K]
-    real, parameter :: cpair  = 1.00464e3 !specific heat of dry air      [J/kg/K]
 !-------------------------------------------------------------------------
     subroutine export_to_lilac (ide, jde, its, ite, jts, jte, var_name , var_2d)
         ! This subroutine reshapes the 2d array to 1d for Lilac
@@ -151,7 +173,7 @@ contains
 
         ! -------------------------------------------------------------------
         ! 1) convert the 2d to 1d array
-        call lilac_reshape (ide, jde, its, ite, jts, jte, var_name , var_2d)
+        call reshape_forlilac (ide, jde, its, ite, jts, jte, var_name , var_2d)
        
         ! 2) setting the value in lilac atmos cap
         call lilac_atmcap_atm2lnd(var_name    , var_2d)
@@ -173,11 +195,18 @@ contains
         integer, allocatable, intent(in) :: var_2d (:,:)
         integer, allocatable, intent(in) :: var_1d (:)
 
+        ! -------------------------------------------------------------------
+        ! 1) convert the 1d array into 2d array
+        call reshape_fromlilac (ide, jde, its, ite, jts, jte, var_name , var_2d)
+       
+        ! 2) setting the value in lilac atmos cap
+        call lilac_atmcap_lnd2atm(var_name    , var_2d)
+
+        print *, "Variable ", var_name , "is set in lilac atmospheric cap!"
+
     end subroutine
 
         ! NOTE : This subroutine is NOT being used now! 
-    subroutine wrf_lilac_init ()
-    end subroutine
     subroutine wrf_lilac_init ()
           ! Here everything goes that is basically pre initalization in atm_driver
           ! This is mostly for description of what has been done in atm_driver and
@@ -401,11 +430,9 @@ contains
           
 
 
-
-          ! dz8w = thickness of full levels --> zlvl = dz8w/2
-
           do j=jts,jte
             do i=its,ite
+              ! dz8w = thickness of full levels --> zlvl = dz8w/2
               zlvl      (i,j) = 0.5 * dz8w (i,km,j) ! only first layer
               forc_uxy  (i,j) =  u_phy (i,km,j)
               forc_vxy  (i,j) =  v_phy (i,km,j)
@@ -413,23 +440,24 @@ contains
               forc_th   (i,j) = forc_t (i,j) * (forc_psrf(i,j)/forc_pbot(i,j)) ** (rair/cpair)     ! pot temp = temp * (p0/p1) ^ (r/cp)
               forc_pbotxy (i,j) = p8w3d(i,km,j)   ! atmosphere bottom level pressure [pa]
               forc_t    (i,j) = t3d (i,km,j)    ! atmosphere bottom level temperature [k]
-              q_ratio   (i,j) = qv3d(i,km,j)/(1.0 + qv3d(i,1,j)) ! converting to mixing ration [kg/kg] -- only first atmos layer
-              prec_in   (i,j) = prec_in(i,km,j)/dt
+              q_ratio   (i,j) = qv3d(i,km,j)/(1.0 + qv3d(i,km,j)) ! converting to mixing ration [kg/kg] -- only first atmos layer
+              precip_in   (i,j) = prec_in(i,km,j)/dt
               snow_in   (i,j) = prec_in (i,km,j) * sr(i,j)     /dt  ! devide by timestep for flux 
               rain_in   (i,j) = prec_in (i,km,j) * (1-sr(i,j)) /dt
               forc_psrf (i,j) = p8w3d (i,km,j)
-              ! We send all the rain to rainc
+              ! All rain is allocated to rainc
               rainc_in  (i,j) = rain_in(i,j)
               rainl_in  (i,j) = 0.0
+              ! All snow is allocated to snowc
               snowc_in  (i,j) = snow_in(i,j)
               snowl_in  (i,j) = 0.0
             enddo
           enddo
 
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_z"    , zlvl(:,:))
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_topo" , topo_hgt(:,:))
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_u"    , forc_uxy(:,:))
-          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_v"    , forc_vxy(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_z"     , zlvl(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_topo"  , topo_hgt(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_u"     , forc_uxy(:,:))
+          call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_v"     , forc_vxy(:,:))
           call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_ptem"  , forc_th(:,:))
           call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_pbot"  , forc_pbotxy(:,:))
           call export_to_lilac (ide, jde, its, ite, jts, jte, "Sa_tbot"  , forc_t(:,:) )
@@ -458,20 +486,83 @@ contains
           ! -----------------------------------------------------------------------------
 
           !call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_lfrin",  )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_t", forc_t(:,:) )    !actual temperature of land
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_tref",  ) !2m reference temperature
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_qref", q_ratio )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_avsdr", alswvisdir  )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_anidr", alswnirdir  )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_avsdf", alswvisdif )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_anidf", alswnirdif )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_snowh",  )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_u10",  )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_fv",  )
-          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_ram1",  )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_t", t_buf               (:,:) )    !actual temperature of land
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_tref",tref_buf          (:,:) ) !2m reference temperature
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_qref", q_buff           (:,:) )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_avsdr", alswvisdir_buff (:,:) )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_anidr", alswnirdir_buf  (:,:) )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_avsdf", alswvisdif_buf  (:,:) )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_anidf", alswnirdif_buf  (:,:) )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_snowh", snowh_buf       (:,:) )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_u10", u10_buf           (:,:) )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_fv", fv_buf             (:,:) )
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Sl_ram1", ram1_buf         (:,:) )  !aerodynamic resitance
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Fall_taux", taux_buf       (:,:) ) !
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Fall_tauy", tauy_buf       (:,:) ) !
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Fall_lat", lat_buf         (:,:) ) !
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Fall_sen", sen_buf         (:,:) ) !
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Fall_lwup",lwup_buf        (:,:) ) !
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Fall_evap", evap_buf       (:,:) ) !
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Fall_swnet", swnet_buf     (:,:) ) !
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Fall_flxdst1",flxdst1_buf  (:,:) ) !
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Fall_flxdst2",flxdst2_buf  (:,:) ) !
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Fall_flxdst3",flxdst3_buf  (:,:) ) !
+          call import_from_lilac (ide, jde, its, ite, jts, jte, "Fall_flxdst4",flxdst4__buf (:,:) ) !
+
+
+          ! set these in the correct arrays:
+          do j=jts,jte
+            do i=its,ite
+              tsk (i,j) = t_buf(i,j)  ! surface radiative temperature [k]
+              ! ??? = tref_buf(i,j)
+              qv3d(i,km,j) = q_ratio(i,j)/(1.0-q_ratio(i,j)) ! 3D water vapor mixing ratio [kg/kg_dry]
+              snowh(i,j) = snowh_buf (i,j)
+              hfx (i,j) = forc_swnet(i,j) ! sensible heat flux
+              qfx (i,j) = lat_buf (i,j)   ! latent heat flux
+              lh (i,j) = lat_buf (i,j)    ! latent heat flux
+              ! NOTE: qfx and lh are both latent heat flux  with two different
+              ! units...
+              ! qfx --> [kg s-1 m-2]
+              ! lh --> [w m-2]
+            end do 
+          end do 
+
+
+          ! based on noah-mp first time-step ... handling sea ice points....
+          if(itimestep == 1)then
+          jloop: do j=jts,jte
+              do i=its,ite
+                 if((xland(i,j)-1.5) >= 0.) then    ! open water case
+                    if(xice(i,j) == 1. .and. iprint) print *,' sea-ice at water point, i=',i,'j=',j
+                    !smstav(i,j) = 1.0
+                    !smstot(i,j) = 1.0
+                    do k = 1, nsoil
+                       !smois(i,k,j) = 1.0
+                       !tslb(i,k,j)  = 273.16
+                    enddo
+                 else
+                    if(xice(i,j) == 1.) then        ! sea-ice case
+                       !smstav(i,j) = 1.0
+                       !smstot(i,j) = 1.0
+                       do k = 1, nsoil
+                          !smois(i,k,j) = 1.0
+                       enddo
+                    endif
+                 endif
+              enddo
+           endif                            ! end of initialization over ocean
+
+          
+
+
+
+
 
     end subroutine wrf_lilac_run
 
+          real(r8), pointer :: u10(:)         ! 10-m wind (m/s) (for dust model)
+          real(r8), pointer :: fv(:)          ! friction velocity (m/s) (for dust model)
+          real(r8), pointer :: ram1(:)            ! aerodynamical resistance (s/m)
 
     ! allocate and fill in atm2lnd
     subroutine wrf_to_lilac ( &
@@ -503,12 +594,10 @@ contains
                    ,inest, sf_urban_physics,nlcat               )!&
 
 
-                  real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: dz8w     !atm bottom level height above surface (m)
                   real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: forc_txy   !atm bottom level temperature (Kelvin)
                   real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: forc_uxy   !atm bottom level zonal wind (m/s)
                   real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: forc_vxy   !atm bottom level meridional wind (m/s)
                   real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: forc_qxy   !atm bottom level specific humidity (kg/kg)
-                  real,  dimension (ims:ime, kms:kme,jms:jme), intent(in) :: ps
                   real,  dimension (ims:ime,jms:jme)           intent(in) :: flwdsxy   ! downward longwave rad onto surface (W/m**2)
                   real , dimension (ims:ime,jms:jme),          intent(in) :: swvisdir  ! vis direct beam solar rad onto srf (W/m**2)
                   real , dimension (ims:ime,jms:jme),          intent(in) :: swvisdif  ! vis diffuse solar rad onto srf (W/m**2)
@@ -516,36 +605,7 @@ contains
                   real , dimension (ims:ime,jms:jme),          intent(in) :: swnirdif  ! nir diffuse solar rad onto srf(W/m**2)
 
 
-
-
                   real , dimension (ims:ime,jms:jme),          intent(in) :: qfx  ! nir diffuse solar rad onto srf(W/m**2)
-                  
-                  ! Optional Detailed Precipitation Partitioning Inputs
-
-                  !1d arrays for filling in lilac
-                  real, dimension :: Sa_z    (:)
-                  real, dimension :: Sa_topo (:)
-                  real, dimension :: Sa_u    (:)
-                  real, dimension :: Sa_v    (:)
-                  real, dimension :: Sa_ptem (:)
-                  real, dimension :: Sa_shum (:)
-                  real, dimension :: Sa_pbot (:)
-                  real, dimension :: Sa_tbot (:)
-                  real, dimension :: Faxa_lwdn (:)
-                  real, dimension :: Faxa_rainc (:)
-                  real, dimension :: Faxa_rainl (:)
-                  real, dimension :: Faxa_snowc (:)
-                  real, dimension :: Faxa_snowl (:)
-                  real, dimension :: Faxa_swndr (:)
-                  real, dimension :: Faxa_swvdr (:)
-                  real, dimension :: Faxa_swndf (:)
-                  real, dimension :: Faxa_swvdf (:)
-
-
-
-
-
-
     end subroutine wrf_to_lilac
 
 
